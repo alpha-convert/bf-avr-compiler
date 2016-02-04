@@ -8,38 +8,22 @@
 #include <streambuf>
 
 
-enum bf_token_t{
-		inc_ptr 	= '>',
-		dec_ptr 	= '<',
-		inc_deref 	= '+', 
-		dec_deref	= '-',
-		beg_loop	= '[',
-		end_loop	= ']',
-		read_char	= ',',
-		put_char	= '.'
-};
-auto const asm_inc_deref = "inc r16\nst X, r16 ; \"+\"\n\n";
-auto const asm_dec_deref = "dec r16\nst X, r16 ; \"-\"\n\n";
-auto const asm_put_char = "out 0x18, r16; \".\"\n\n"; //18h is port b
-auto const asm_read_char = "in r16, 0x18\nst X, r16; \",\"\n\n"; //might be wrong. check st instruction
-auto const asm_dec_ptr = "dec r26\nld r16, X; \"<\"\n\n";
-auto const asm_inc_ptr = "inc r26\nld r16, X; \">\"\n\n";
+#include "utils.h"
 
 
-
-std::string read_entire_file(std::string filename){
+std::string read_entire_file(const std::string &filename){
 	std::ifstream t(filename);
 	std::stringstream buffer;
 	buffer << t.rdbuf();
 	return buffer.str();
 }
 
-void compile(std::string bf_program, 
+void compile(const std::string bf_program, 
 				std::vector<std::string> &asm_program,
-			   	std::map<std::string,std::string> &options){
+			   	const std::map<std::string,std::string> &options){
 		
 	std::stack<int> jump_label_nums;	//stack for [ and ] instructions
-	auto curr_inst = bf_program.begin(); //iterator over instructions
+	//auto curr_inst = bf_program.begin(); //iterator over instructions
 	auto label_num = 1;					//counter for label numbers to avoid conflicts
 
 	//data register option
@@ -50,6 +34,7 @@ void compile(std::string bf_program,
 		asm_program.push_back("clr r16\n");
 	}
 
+	
 	if(options.count("memory_addr")){
 		asm_program.push_back("ldi r26, " + options.at("memory_addr") + "\n");
 	
@@ -60,9 +45,8 @@ void compile(std::string bf_program,
 	asm_program.push_back("main:\n");
 
 
-
-	for(;curr_inst < bf_program.end();++curr_inst){
-			switch(*curr_inst){
+	for(const auto &curr_inst : bf_program){
+			switch(curr_inst){
 				case inc_ptr:
 					asm_program.push_back(asm_inc_ptr);
 					break;
@@ -81,8 +65,8 @@ void compile(std::string bf_program,
 
 				case beg_loop:
 					{
-					auto end_label = "loop_label_end" + std::to_string(label_num); 
-					auto beg_label = "loop_label" + std::to_string(label_num);
+					const auto end_label = "loop_label_end" + std::to_string(label_num); 
+					const auto beg_label = "loop_label" + std::to_string(label_num);
 					asm_program.push_back("cpi r16,0\nbreq " + end_label + "\n");
 					asm_program.push_back(beg_label + ":\n\n");
 					jump_label_nums.push(label_num);
@@ -92,10 +76,10 @@ void compile(std::string bf_program,
 
 				case end_loop:
 					{
-					auto curr_label_num = jump_label_nums.top();
+					const auto curr_label_num = jump_label_nums.top();
 					jump_label_nums.pop();
-					auto beg_label = "loop_label" + std::to_string(curr_label_num);
-					auto end_label = "loop_label_end" + std::to_string(curr_label_num);
+					const auto beg_label = "loop_label" + std::to_string(curr_label_num);
+					const auto end_label = "loop_label_end" + std::to_string(curr_label_num);
 					asm_program.push_back("cpi r16, 0\nbrne " + beg_label + "\n");
 					asm_program.push_back(end_label + ":\n");
 					}
@@ -111,8 +95,6 @@ void compile(std::string bf_program,
 			}
 	}
 
-
-
 }
 
 
@@ -126,13 +108,13 @@ void compile(std::string bf_program,
 //
 
 int main(int argc, char **argv){
-	
-	
 
 	const auto bf_program = read_entire_file("main.bf");
 	std::vector<std::string> asm_program;	//holds each equiv instruction of the bf
 
-	compile(bf_program,asm_program,NULL);
+	std::map<std::string,std::string> options = {{"data_reg","r16"}};
+
+	compile(bf_program,asm_program,options);
 
 	for(auto const& instr: asm_program) {
 		std::cout << instr;
